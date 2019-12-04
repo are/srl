@@ -136,7 +136,8 @@ var grammar = {
             const isSameId = result.every(([tid]) => tid.type === id.type && tid.value === id.value)
         
             if (isSameId) {
-                return result.reduceRight((acc, [id, value]) => [id, value, acc])
+                let [op, val] = result[result.length - 1]
+                return result.slice(0, -1).reduceRight((acc, [id, value]) => [id, value, acc], val)
             } else {
                 return reject
             }

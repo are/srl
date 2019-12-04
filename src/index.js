@@ -85,9 +85,16 @@ async function main(inputPaths, flags) {
         }
 
         const rule = mod.ctx.rules.get(ruleName)
-        const result = mod.reduceRule(ruleName)
+        const result = mod.ctx.run(rule.to, i => {
+            if (flags.trace === true) {
+                console.log('STEP:', format(i))
+            }
+        })
 
-        console.log(format(result))
+        if (result) {
+            console.log(format(result))
+        }
+
         process.exit(0)
     } else {
         console.log(
