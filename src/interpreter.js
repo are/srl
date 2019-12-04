@@ -1,4 +1,5 @@
 const util = require('util')
+const { format } = require('./utils.js')
 
 const zip = (as, bs) => as.map((a, i) => [a, bs[i]])
 
@@ -12,11 +13,14 @@ const SIDE_EFFECTS = {
 }
 
 class Context {
-    constructor(declarations) {
+    constructor(statements) {
         this.rules = new Map()
         this.boxes = new Map()
+        this.asserts = new Map()
 
-        for (let declaration of declarations) {
+        for (let declaration of statements.filter(
+            s => s.type === 'DECLARATION'
+        )) {
             this.rules.set(declaration.name.value, {
                 type: 'rule',
                 from: declaration.args,
@@ -24,6 +28,18 @@ class Context {
                 sideEffects: declaration.sideEffects || []
             })
         }
+
+        for (let assertion of statements.filter(s => s.type === 'ASSERTION')) {
+            this.asserts.set(assertion.name.value, {
+                type: 'assertion',
+                test: assertion.name.value,
+                expect: assertion.body
+            })
+        }
+    }
+
+    declaration(name) {
+        return this.rules.get(name)
     }
 
     get(identifier) {
@@ -39,7 +55,7 @@ class Context {
     replace(subject, target, replacement) {
         const result = subject.reduce((acc, entry) => {
             if (Array.isArray(entry)) {
-                return this.replace(entry, target, replacement)
+                return [...acc, this.replace(entry, target, replacement)]
             }
 
             if (target.type === entry.type && target.value === entry.value) {
@@ -88,9 +104,16 @@ class Context {
 
             let value
             if (argument.hasStar) {
-                value = args
+                value = []
+                while (args.length > 0) {
+                    value.push(args.shift())
+                }
             } else {
                 value = args.shift()
+            }
+
+            if (value === undefined) {
+                throw `Cannot reduce '${head.value}' - not enough arguments`
             }
 
             result = this.replace(result, argument, value)
@@ -126,17 +149,13 @@ class Context {
             }
         }
 
-        return result
+        return [result, ...args]
     }
 
     run(input) {
-        let result = input
-
-        while (
-            result.length !== 1 ||
-            (result.length === 1 && Array.isArray(result[0]))
-        ) {
-            result = this.reduce(result)
+        let result
+        for (let res of this.solve(input)) {
+            result = res
         }
 
         return result

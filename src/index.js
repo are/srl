@@ -2,6 +2,8 @@
 
 const nearley = require('nearley')
 const getStdin = require('get-stdin')
+const util = require('util')
+const assert = require('assert')
 
 const grammar = require('./grammar.js')
 const { argv, trace, format, readFile } = require('./utils.js')
@@ -38,17 +40,53 @@ async function main([filename], flags) {
 
     if (!program || parser.results.length > 1) {
         if (flags.debug) {
-            console.log(parser.results)
+            console.log(
+                util.inspect(parser.results, { depth: Infinity, colors: true })
+            )
         }
         throw 'Cannot parse program'
     }
 
-    const ctx = new Context(program.declarations)
+    const ctx = new Context(program.statements)
 
-    trace('INPUT', format(program.body))
+    if (flags.runTests === true) {
+        let didFail = false
+        for (let [name, { expect }] of ctx.asserts) {
+            const declaration = ctx.declaration(name)
+
+            if (declaration.from !== null) {
+                continue
+            }
+
+            try {
+                assert.deepStrictEqual(expect, ctx.run(declaration.to), 'abc')
+                console.log(`${name}: passed`)
+            } catch (e) {
+                didFail = true
+                console.log(`${name}: failed`)
+            }
+        }
+
+        process.exit(didFail ? 1 : 0)
+    }
+
+    let mainRuleName = 'main'
+    if (typeof flags.solve === 'string') {
+        mainRuleName = flags.solve
+    }
+
+    const mainRule = ctx.rules.get(mainRuleName)
+
+    if (!mainRule) {
+        throw `Rule '${mainRuleName}' not found`
+    }
+
+    const { to: body } = mainRule
+
+    trace('INPUT', format(body))
 
     let final
-    for (let result of ctx.solve(program.body)) {
+    for (let result of ctx.solve(body)) {
         trace('TRACE', format(result))
 
         if (result.length === 1 && result[0].type === 'BOX') {

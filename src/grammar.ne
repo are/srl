@@ -6,9 +6,10 @@
         p_right:    ')',
         pipe:       '|',
         box:        '@',
+        as:         ':=',
         eq:         '=',
         star:       '*',
-        id:         /[a-zA-Z0-9$!?\.\-]+/,
+        id:         { match: /[a-zA-Z0-9$!?\.\-]+/, type: moo.keywords({ assert: ['assert'] }) },
         ws:         /[ \t]+/,
         sym:        /\<[0-9]+\>/,
         nl:         { match: /\r?\n/, lineBreaks: true }
@@ -48,10 +49,15 @@
         sideEffects: se
     })
 
-    const PROGRAM = (declarations, body) => ({
-        type: 'PROGRAM',
-        declarations,
+    const ASSERTION = (name, body) => ({
+        type: 'ASSERTION',
+        name,
         body
+    })
+
+    const PROGRAM = (statements, body) => ({
+        type: 'PROGRAM',
+        statements,
     })
 
     const BOX = (identifier) => ({
@@ -64,20 +70,41 @@
 
 @lexer lexer
 
-Program -> NewLine:* DeclarationList EmptyLine:+ Expression NewLine:*
-    {% ([_1, declarations, _2, body]) => PROGRAM(declarations, body) %}
+Program -> NewLine:* EntryList NewLine:*
+    {% ([_1, declarations, _2]) => PROGRAM(declarations) %}
 
-DeclarationList -> Declaration (NewLine:+ Declaration):*
+EntryList -> Entry (NewLine:+ Entry):*
     {% converge([nth(1, identity), nth(2, map(second))], concat) %}
 
+Entry ->
+      Declaration {% nth(1, identity) %}
+    | Assertion {% nth(1, identity) %}
+
 Declaration ->
-    Identifier ArgumentList:? _:? Equals _:? Expression SideEffect:*
+    Identifier ArgumentList:? _:? Assign _:? Expression SideEffect:*
     {% ([name, args, _1, _2, _3, body, se]) => DECLARATION(name, args, body, se) %}
 
 SideEffect -> NewLine _:* Pipe _:+ Expression {% nth(5, identity) %}
 
-Expression -> Identifier (_ Value):*
-    {% converge([nth(1, identity), nth(2, map(second))], concat) %}
+Assertion -> Assert _ Identifier _:? Equals _:? Expression
+    {% ([_a, _1, name, _2, _3, _4, body ]) => ASSERTION(name, body) %}
+
+Expression ->
+      Identifier (_ Value):*
+        {% converge([nth(1, identity), nth(2, map(second))], concat) %}
+    | Value _ Identifier _ Value (_ Identifier _ Value):+ {%
+        ([v1, _1, id, _2, v2, tails], l, reject) => {
+            const result = [[id, v1], [id, v2], ...tails.map(([_1, id, _2, value]) => [id, value])]
+
+            const isSameId = result.every(([tid]) => tid.type === id.type && tid.value === id.value)
+
+            if (isSameId) {
+                return result.reduceRight((acc, [id, value]) => [id, value, acc])
+            } else {
+                return reject
+            }
+        }
+      %}
 
 Value ->
       Symbol {% nth(1, identity) %}
@@ -92,8 +119,11 @@ Identifier -> Star:? %id {% ([star, id]) => IDENTIFIER(id, star) %}
 Symbol -> %sym {% nth(1, SYMBOL) %}
 
 EmptyLine -> NewLine NewLine {% nil %}
+Assert -> %assert {% nil %}
 NewLine -> %nl {% nil %}
 Equals -> %eq {% nil %}
+Assign -> %as {% nil %}
 _ -> %ws {% nil %}
 Pipe -> %pipe {% nil %}
 Star -> %star {% () => STAR %}
+Dot -> %dot {% nil %}
