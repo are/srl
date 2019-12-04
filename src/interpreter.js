@@ -13,11 +13,14 @@ const SIDE_EFFECTS = {
 }
 
 class Context {
-    constructor(statements) {
+    constructor() {
         this.rules = new Map()
         this.boxes = new Map()
         this.asserts = new Map()
+        this.imports = new Map()
+    }
 
+    load(statements) {
         for (let declaration of statements.filter(
             s => s.type === 'DECLARATION'
         )) {
@@ -36,6 +39,14 @@ class Context {
                 expect: assertion.body
             })
         }
+
+        for (let include of statements.filter(s => s.type === 'IMPORT')) {
+            this.imports.set(include.name.value, {
+                type: 'import',
+                name: include.name.value,
+                rules: include.ids
+            })
+        }
     }
 
     declaration(name) {
@@ -45,11 +56,11 @@ class Context {
     get(identifier) {
         let rule = this.rules.get(identifier.value)
 
-        if (rule) {
-            return rule
+        if (!rule) {
+            throw `Cannot reduce rule '${identifier.value}'`
         }
 
-        return { type: 'special', action: this.specials[identifier.value] }
+        return rule
     }
 
     replace(subject, target, replacement) {
@@ -152,9 +163,10 @@ class Context {
         return [result, ...args]
     }
 
-    run(input) {
+    run(input, im = () => {}) {
         let result
         for (let res of this.solve(input)) {
+            im(res)
             result = res
         }
 

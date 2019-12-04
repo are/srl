@@ -1,6 +1,2 @@
-first a b = a
-second a b = b
-second_1 b = second <1> b
-
-
-second <1>
+first a b := a
+second a b := b

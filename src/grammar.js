@@ -9,11 +9,15 @@ function id(x) { return x[0]; }
         p_left:     '(',
         p_right:    ')',
         pipe:       '|',
-        box:        '@',
+        box:        '#',
+        at:         '@',
         as:         ':=',
+        colon:      ':',
         eq:         '=',
         star:       '*',
-        id:         { match: /[a-zA-Z0-9$!?\.\-]+/, type: moo.keywords({ assert: ['assert'] }) },
+        id:         { match: /[a-zA-Z0-9$!?\.\-]+/, type: moo.keywords({
+            assert: ['assert'],
+        }) },
         ws:         /[ \t]+/,
         sym:        /\<[0-9]+\>/,
         nl:         { match: /\r?\n/, lineBreaks: true }
@@ -59,6 +63,12 @@ function id(x) { return x[0]; }
         body
     })
 
+    const IMPORT = (name, ids) => ({
+        type: 'IMPORT',
+        name,
+        ids
+    })
+
     const PROGRAM = (statements, body) => ({
         type: 'PROGRAM',
         statements,
@@ -86,6 +96,7 @@ var grammar = {
     {"name": "EntryList", "symbols": ["Entry", "EntryList$ebnf$1"], "postprocess": converge([nth(1, identity), nth(2, map(second))], concat)},
     {"name": "Entry", "symbols": ["Declaration"], "postprocess": nth(1, identity)},
     {"name": "Entry", "symbols": ["Assertion"], "postprocess": nth(1, identity)},
+    {"name": "Entry", "symbols": ["Import"], "postprocess": nth(1, identity)},
     {"name": "Declaration$ebnf$1", "symbols": ["ArgumentList"], "postprocess": id},
     {"name": "Declaration$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "Declaration$ebnf$2", "symbols": ["_"], "postprocess": id},
@@ -105,6 +116,11 @@ var grammar = {
     {"name": "Assertion$ebnf$2", "symbols": ["_"], "postprocess": id},
     {"name": "Assertion$ebnf$2", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "Assertion", "symbols": ["Assert", "_", "Identifier", "Assertion$ebnf$1", "Equals", "Assertion$ebnf$2", "Expression"], "postprocess": ([_a, _1, name, _2, _3, _4, body ]) => ASSERTION(name, body)},
+    {"name": "Import$ebnf$1$subexpression$1", "symbols": ["_", "Identifier"]},
+    {"name": "Import$ebnf$1", "symbols": ["Import$ebnf$1$subexpression$1"]},
+    {"name": "Import$ebnf$1$subexpression$2", "symbols": ["_", "Identifier"]},
+    {"name": "Import$ebnf$1", "symbols": ["Import$ebnf$1", "Import$ebnf$1$subexpression$2"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "Import", "symbols": ["At", "Identifier", "Colon", "Import$ebnf$1"], "postprocess": ([_a, name, _c, ids]) => IMPORT(name, map(second)(ids))},
     {"name": "Expression$ebnf$1", "symbols": []},
     {"name": "Expression$ebnf$1$subexpression$1", "symbols": ["_", "Value"]},
     {"name": "Expression$ebnf$1", "symbols": ["Expression$ebnf$1", "Expression$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
@@ -148,7 +164,9 @@ var grammar = {
     {"name": "_", "symbols": [(lexer.has("ws") ? {type: "ws"} : ws)], "postprocess": nil},
     {"name": "Pipe", "symbols": [(lexer.has("pipe") ? {type: "pipe"} : pipe)], "postprocess": nil},
     {"name": "Star", "symbols": [(lexer.has("star") ? {type: "star"} : star)], "postprocess": () => STAR},
-    {"name": "Dot", "symbols": [(lexer.has("dot") ? {type: "dot"} : dot)], "postprocess": nil}
+    {"name": "Dot", "symbols": [(lexer.has("dot") ? {type: "dot"} : dot)], "postprocess": nil},
+    {"name": "At", "symbols": [(lexer.has("at") ? {type: "at"} : at)], "postprocess": nil},
+    {"name": "Colon", "symbols": [(lexer.has("colon") ? {type: "colon"} : colon)], "postprocess": nil}
 ]
   , ParserStart: "Program"
 }

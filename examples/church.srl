@@ -21,11 +21,3 @@ true a b := a
 false a b := b
 
 is-zero A := A (first false) true
-
-case1 := is-zero 0
-case2 := is-zero 1
-case3 := is-zero 3
-
-assert case1 = true
-assert case2 = false
-assert case3 = false

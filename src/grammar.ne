@@ -5,11 +5,15 @@
         p_left:     '(',
         p_right:    ')',
         pipe:       '|',
-        box:        '@',
+        box:        '#',
+        at:         '@',
         as:         ':=',
+        colon:      ':',
         eq:         '=',
         star:       '*',
-        id:         { match: /[a-zA-Z0-9$!?\.\-]+/, type: moo.keywords({ assert: ['assert'] }) },
+        id:         { match: /[a-zA-Z0-9$!?\.\-]+/, type: moo.keywords({
+            assert: ['assert'],
+        }) },
         ws:         /[ \t]+/,
         sym:        /\<[0-9]+\>/,
         nl:         { match: /\r?\n/, lineBreaks: true }
@@ -55,6 +59,12 @@
         body
     })
 
+    const IMPORT = (name, ids) => ({
+        type: 'IMPORT',
+        name,
+        ids
+    })
+
     const PROGRAM = (statements, body) => ({
         type: 'PROGRAM',
         statements,
@@ -79,6 +89,7 @@ EntryList -> Entry (NewLine:+ Entry):*
 Entry ->
       Declaration {% nth(1, identity) %}
     | Assertion {% nth(1, identity) %}
+    | Import {% nth(1, identity) %}
 
 Declaration ->
     Identifier ArgumentList:? _:? Assign _:? Expression SideEffect:*
@@ -88,6 +99,9 @@ SideEffect -> NewLine _:* Pipe _:+ Expression {% nth(5, identity) %}
 
 Assertion -> Assert _ Identifier _:? Equals _:? Expression
     {% ([_a, _1, name, _2, _3, _4, body ]) => ASSERTION(name, body) %}
+
+Import -> At Identifier Colon (_ Identifier):+
+    {% ([_a, name, _c, ids]) => IMPORT(name, map(second)(ids)) %}
 
 Expression ->
       Identifier (_ Value):*
@@ -127,3 +141,5 @@ _ -> %ws {% nil %}
 Pipe -> %pipe {% nil %}
 Star -> %star {% () => STAR %}
 Dot -> %dot {% nil %}
+At -> %at {% nil %}
+Colon -> %colon {% nil %}
