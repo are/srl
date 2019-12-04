@@ -1,0 +1,4 @@
+first a b = a
+second a b = b
+
+second <1> (first <3> <2>)

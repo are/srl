@@ -1,0 +1,23 @@
+{
+    "name": "srl",
+    "version": "1.0.0",
+    "description": "",
+    "main": "src/index.js",
+    "scripts": {
+        "compile": "nearleyc src/grammar.ne -o src/grammar.js"
+    },
+    "keywords": [],
+    "author": "",
+    "license": "ISC",
+    "dependencies": {
+        "get-stdin": "^7.0.0",
+        "yargs": "^15.0.2"
+    },
+    "devDependencies": {
+        "moo": "^0.5.1",
+        "nearley": "^2.19.0"
+    },
+    "bin": {
+        "srl": "src/index.js"
+    }
+}

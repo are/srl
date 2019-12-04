@@ -1,0 +1,5 @@
+first 1 2 = 1
+increment B *rest = *rest
+    | inc! B
+
+increment @1 @1
