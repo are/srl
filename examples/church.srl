@@ -8,6 +8,7 @@ plus A B f x := A f (B f x)
 succ A f x := f (A f x)
 mul A B f x := A (B f) x
 exp A B := B A
+minus A B := B pred A
 
 id x := x
 first x y := x
@@ -20,4 +21,9 @@ id! B *rest := rest
 true a b := a
 false a b := b
 
+and A B := A B A
+or A B := A A B
+not A := A false true
+
 is-zero A := A (first false) true
+

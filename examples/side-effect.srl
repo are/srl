@@ -1,4 +1,0 @@
-increment B *rest = *rest
-    | inc! B
-
-increment @1 @1

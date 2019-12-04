@@ -1,8 +1,27 @@
-@church: is-zero 0 1 3 first false true
+@church: false true and or not 0 1 2 3 plus minus
 
-case1 := is-zero 0
-case2 := is-zero 1
-case3 := is-zero 3
-assert case1 = true
-assert case2 = false
-assert case3 = false
+case-and-1 := and false false
+case-and-2 := and false true
+case-and-3 := and true false
+case-and-4 := and true true
+
+assert case-and-1 = false
+assert case-and-2 = false
+assert case-and-3 = false
+assert case-and-4 = true
+
+case-or-1 := or false false
+case-or-2 := or false true
+case-or-3 := or true false
+case-or-4 := or true true
+
+assert case-or-1 = false
+assert case-or-2 = true
+assert case-or-3 = true
+assert case-or-4 = true
+
+case-not-1 := not true
+case-not-2 := not false
+
+assert case-not-1 = false
+assert case-not-2 = true
