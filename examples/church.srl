@@ -1,8 +1,17 @@
+True a b := a
+False a b := b
+
+and A B := A B A
+or A B := A A B
+not A := A False True
+
+first a b := a
+second a b := b
+
 0 f x := x
 1 f x := f x
 2 f x := f (f x)
 3 f x := f (f (f x))
-6 := mul 2 3
 
 plus A B f x := A f (B f x)
 succ A f x := f (A f x)
@@ -15,15 +24,4 @@ first x y := x
 inc f g h := h (g f)
 pred A f x := A (inc f) (first x) id
 
-id! B *rest := rest
- | inc! B
-
-true a b := a
-false a b := b
-
-and A B := A B A
-or A B := A A B
-not A := A false true
-
-is-zero A := A (first false) true
-
+is-zero A := A (first False) True

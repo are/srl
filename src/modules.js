@@ -38,6 +38,7 @@ class Module {
                 console.log(error)
                 throw `Syntax error at line ${error.token.line} col ${error.token.col} in '${this.path}'`
             } else {
+                console.log(error)
                 throw `Unexpected error has occured in '${this.path}'`
             }
         }

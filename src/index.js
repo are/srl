@@ -43,38 +43,97 @@ async function main(inputPaths, flags) {
     const mainModules = modules.filter(mod => mod.isMain)
 
     if (flags.runTests === true) {
-        let didFail = false
+        console.log(`TAP version 13`)
+
+        let testIndex = 0
+        const testCount = mainModules.reduce(
+            (acc, mod) =>
+                acc +
+                Array.from(mod.ctx.asserts).reduce(
+                    (amm, ass) => 1 + ass.sideEffects.length + amm,
+                    0
+                ),
+            0
+        )
+
+        console.log(`1..${testCount}`)
+
+        let didAnyFail = false
         for (let mainModule of mainModules) {
+            console.log(`# ${mainModule.name} (${mainModule.path})`)
             let ctx = mainModule.ctx
 
-            for (let [name, { expect }] of ctx.asserts) {
-                const declaration = ctx.declaration(name)
+            for (let { test, expect, comment, sideEffects } of ctx.asserts) {
+                const description = `${comment ? comment + ' ' : ''}(${format(
+                    test
+                )})`
+                testIndex += 1
 
-                if (declaration.from !== null) {
-                    continue
-                }
-
-                const result = ctx.run(declaration.to)
+                let result
+                let error
+                let didThisFail = false
 
                 try {
+                    result = ctx.run(test, d => {
+                        if (flags.trace) {
+                            console.log(format(d))
+                        }
+                    })
                     assert.deepStrictEqual(expect, result, 'abc')
-                    console.log(`${mainModule.name} ${name}: passed`)
                 } catch (e) {
-                    didFail = true
-                    console.log(
-                        `${
-                            mainModule.name
-                        } ${name}: failed - expected '${format(
-                            expect
-                        )}', instead got '${format(result)}'`
-                    )
+                    error = e
+                    didAnyFail = true
+                    didThisFail = true
+                }
+
+                if (didThisFail) {
+                    if (typeof error === 'string') {
+                        console.log(`
+not ok ${testIndex} - ${description}
+  ---
+    error:      ${error}
+  ...`)
+                    } else {
+                        console.log(`
+not ok ${testIndex} - ${description}
+  ---
+    expected:   ${format(expect)}
+    actual:     ${format(result)}
+    stack:      ${format(test)}
+  ...`)
+                    }
+                } else {
+                    console.log(`ok ${testIndex} - ${description}`)
+                    let seFailed = false
+
+                    for (let effect of sideEffects) {
+                        const result = ctx.sideEffect(effect, [], [])
+                        testIndex += 1
+
+                        if (result === true) {
+                            console.log(
+                                `ok ${testIndex} -- side-effect: (${format(
+                                    effect
+                                )})`
+                            )
+                        } else {
+                            seFailed = false
+                            console.log(
+                                `not ok ${testIndex} -- sife-effect: (${format(
+                                    effect
+                                )})
+  ---
+    expected:   ${result.expected}
+    actual:     ${result.actual}
+  ...`
+                            )
+                        }
+                    }
                 }
             }
-
-            continue
         }
 
-        process.exit(didFail ? 1 : 0)
+        process.exit(didAnyFail ? 1 : 0)
     } else if (typeof flags.solve === 'string') {
         let ruleName = flags.solve
 
@@ -113,6 +172,7 @@ Options:
 }
 
 main(argv._, argv).catch(e => {
+    console.log(e)
     trace('ERROR', e)
     process.exit(1)
 })

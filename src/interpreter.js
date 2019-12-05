@@ -3,12 +3,47 @@ const { format } = require('./utils.js')
 
 const zip = (as, bs) => as.map((a, i) => [a, bs[i]])
 
+const savedBoxes = []
+
 const SIDE_EFFECTS = {
-    'inc!': ([box], ctx) => {
+    'increment!': ([box], ctx) => {
         if (box.type === 'BOX') {
             const currentValue = ctx.boxes.get(box.value) || 0
             ctx.boxes.set(box.value, currentValue + 1)
         }
+
+        return true
+    },
+    'equals!': ([box, symbol], ctx) => {
+        if (box.type === 'BOX' && symbol.type === 'SYMBOL') {
+            const currentValue = ctx.boxes.get(box.value) || 0
+            if (currentValue === parseFloat(symbol.value)) {
+                return true
+            } else {
+                return {
+                    expected: symbol.value,
+                    actual: currentValue
+                }
+            }
+        }
+
+        return {
+            expected: 'equals! [BOX] [SYMBOL]',
+            actual: `equals! [${box.type}] [${symbol.type}]`
+        }
+    },
+    'save!': ([box], ctx) => {
+        savedBoxes.push(box)
+
+        return true
+    },
+    'increment-saved!': (_, ctx) => {
+        const box = savedBoxes[savedBoxes.length - 1]
+
+        const currentValue = ctx.boxes.get(box.value) || 0
+        ctx.boxes.set(box.value, currentValue + 1)
+
+        return true
     }
 }
 
@@ -16,7 +51,7 @@ class Context {
     constructor() {
         this.rules = new Map()
         this.boxes = new Map()
-        this.asserts = new Map()
+        this.asserts = new Set()
         this.imports = new Map()
     }
 
@@ -33,10 +68,12 @@ class Context {
         }
 
         for (let assertion of statements.filter(s => s.type === 'ASSERTION')) {
-            this.asserts.set(assertion.name.value, {
+            this.asserts.add({
                 type: 'assertion',
-                test: assertion.name.value,
-                expect: assertion.body
+                test: assertion.name,
+                expect: assertion.body,
+                comment: assertion.comment,
+                sideEffects: assertion.sideEffects
             })
         }
 
@@ -80,6 +117,34 @@ class Context {
             }
         }, [])
         return result
+    }
+
+    sideEffect(effect, fromD, rest) {
+        const [head, ...body] = effect
+        const handler = SIDE_EFFECTS[head.value]
+
+        if (!handler) {
+            throw `Unknown side-effect ${head.value}`
+        }
+
+        let res = [...body]
+        let from = fromD === null ? [] : [...fromD]
+        let args = [...rest]
+
+        while (from.length > 0) {
+            const argument = from.shift()
+
+            let value
+            if (argument.hasStar) {
+                value = args
+            } else {
+                value = args.shift()
+            }
+
+            res = this.replace(res, argument, value)
+        }
+
+        return handler(res, this)
     }
 
     reduce(input) {
@@ -132,31 +197,7 @@ class Context {
 
         if (Array.isArray(sideEffects)) {
             for (let effect of sideEffects) {
-                const [head, ...body] = effect
-                const handler = SIDE_EFFECTS[head.value]
-
-                if (!handler) {
-                    throw `Unknown side-effect ${head.value}`
-                }
-
-                let res = [...body]
-                let from = fromD === null ? [] : [...fromD]
-                let args = [...rest]
-
-                while (from.length > 0) {
-                    const argument = from.shift()
-
-                    let value
-                    if (argument.hasStar) {
-                        value = args
-                    } else {
-                        value = args.shift()
-                    }
-
-                    res = this.replace(res, argument, value)
-                }
-
-                handler(res, this)
+                this.sideEffect(effect, fromD, rest)
             }
         }
 

@@ -1,27 +1,42 @@
-@church: false true and or not 0 1 2 3 plus minus
+import church =>> False True and or not
+              =>> first second
+              =>> 0 1 2 plus succ
 
-case-and-1 := and false false
-case-and-2 := and false true
-case-and-3 := and true false
-case-and-4 := and true true
+eat! B *rest := *rest
+    | increment! B
 
-assert case-and-1 = false
-assert case-and-2 = false
-assert case-and-3 = false
-assert case-and-4 = true
+assert and False False = False
+assert and False True = False
+assert and True False = False
+assert and True True = True
 
-case-or-1 := or false false
-case-or-2 := or false true
-case-or-3 := or true false
-case-or-4 := or true true
+assert or False False = False
+assert or False True = True
+assert or True False = True
+assert or True True = True
 
-assert case-or-1 = false
-assert case-or-2 = true
-assert case-or-3 = true
-assert case-or-4 = true
+assert not True = False
+assert not False = True
 
-case-not-1 := not true
-case-not-2 := not false
+assert first <1> <2> = <1>
+assert second <1> <2> = <2>
 
-assert case-not-1 = false
-assert case-not-2 = true
+assert {0 should not apply a function}
+    0 (first False) True = True
+
+assert {1 should apply function once}
+    1 (first False) True = False
+
+assert {0 plus 0 should not apply a function}
+    plus 0 0 (first False) True = True
+
+assert {0 plus 1 should apply function once}
+    plus 0 1 (first False) True = False
+
+assert {1 plus 1 should increment the box 2 times}
+    plus 1 1 (eat! #a) () = ()
+    | equals! #a <2>
+
+assert {2 plus 2 should increment the box 4 times}
+    plus 2 2 (eat! #b) () = ()
+    | equals! #b <4>

@@ -5,22 +5,30 @@ function id(x) { return x[0]; }
 
     const moo = require('moo')
 
-    const lexer = moo.compile({
-        p_left:     '(',
-        p_right:    ')',
-        pipe:       '|',
-        box:        '#',
-        at:         '@',
-        as:         ':=',
-        colon:      ':',
-        eq:         '=',
-        star:       '*',
-        id:         { match: /[a-zA-Z0-9$!?\.\-]+/, type: moo.keywords({
-            assert: ['assert'],
-        }) },
-        ws:         /[ \t]+/,
-        sym:        /\<[0-9]+\>/,
-        nl:         { match: /\r?\n/, lineBreaks: true }
+    const lexer = moo.states({
+        main: {
+            p_left:     '(',
+            p_right:    ')',
+            cb_left:    { match: '{', push: 'comment' },
+            pipe:       '|',
+            box:        '#',
+            arrow:      '=>>',
+            as:         ':=',
+            colon:      ':',
+            eq:         '=',
+            star:       '*',
+            id:         { match: /[a-zA-Z0-9$!?\.\-]+/, type: moo.keywords({
+                assert: ['assert'],
+                imp: ["import"],
+            }) },
+            ws:         /[ \t]+/,
+            sym:        /\<[0-9]+\>/,
+            nl:         { match: /\r?\n/, lineBreaks: true }
+        },
+        comment: {
+            comment: { match: /[^}]+/, lineBreaks: true },
+            cb_right: { match:'}', pop: true }
+        }
     })
 
     const identity = a => a
@@ -32,6 +40,7 @@ function id(x) { return x[0]; }
     const concat = (...els) => els.reduce((r, e) => [...r, ...(Array.isArray(e) ? e : [e]) ], [])
 
     const nil = () => null
+    const lift = x => [x]
 
     const IDENTIFIER = (token, starToken) => ({
         type: 'IDENTIFIER',
@@ -57,10 +66,12 @@ function id(x) { return x[0]; }
         sideEffects: se
     })
 
-    const ASSERTION = (name, body) => ({
+    const ASSERTION = (name, body, comment, se) => ({
         type: 'ASSERTION',
         name,
-        body
+        body,
+        comment: comment && comment.value,
+        sideEffects: se
     })
 
     const IMPORT = (name, ids) => ({
@@ -80,6 +91,10 @@ function id(x) { return x[0]; }
     })
 
     const STAR = {}
+
+    const UNIT = {
+        type: 'UNIT'
+    }
 var grammar = {
     Lexer: lexer,
     ParserRules: [
@@ -111,16 +126,32 @@ var grammar = {
     {"name": "SideEffect$ebnf$2", "symbols": ["_"]},
     {"name": "SideEffect$ebnf$2", "symbols": ["SideEffect$ebnf$2", "_"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "SideEffect", "symbols": ["NewLine", "SideEffect$ebnf$1", "Pipe", "SideEffect$ebnf$2", "Expression"], "postprocess": nth(5, identity)},
-    {"name": "Assertion$ebnf$1", "symbols": ["_"], "postprocess": id},
+    {"name": "Assertion$ebnf$1$subexpression$1$ebnf$1", "symbols": ["AnyWhitespace"]},
+    {"name": "Assertion$ebnf$1$subexpression$1$ebnf$1", "symbols": ["Assertion$ebnf$1$subexpression$1$ebnf$1", "AnyWhitespace"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "Assertion$ebnf$1$subexpression$1", "symbols": ["AssertionComment", "Assertion$ebnf$1$subexpression$1$ebnf$1"]},
+    {"name": "Assertion$ebnf$1", "symbols": ["Assertion$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "Assertion$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "Assertion$ebnf$2", "symbols": ["_"], "postprocess": id},
     {"name": "Assertion$ebnf$2", "symbols": [], "postprocess": function(d) {return null;}},
-    {"name": "Assertion", "symbols": ["Assert", "_", "Identifier", "Assertion$ebnf$1", "Equals", "Assertion$ebnf$2", "Expression"], "postprocess": ([_a, _1, name, _2, _3, _4, body ]) => ASSERTION(name, body)},
-    {"name": "Import$ebnf$1$subexpression$1", "symbols": ["_", "Identifier"]},
-    {"name": "Import$ebnf$1", "symbols": ["Import$ebnf$1$subexpression$1"]},
-    {"name": "Import$ebnf$1$subexpression$2", "symbols": ["_", "Identifier"]},
-    {"name": "Import$ebnf$1", "symbols": ["Import$ebnf$1", "Import$ebnf$1$subexpression$2"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "Import", "symbols": ["At", "Identifier", "Colon", "Import$ebnf$1"], "postprocess": ([_a, name, _c, ids]) => IMPORT(name, map(second)(ids))},
+    {"name": "Assertion$ebnf$3", "symbols": ["_"], "postprocess": id},
+    {"name": "Assertion$ebnf$3", "symbols": [], "postprocess": function(d) {return null;}},
+    {"name": "Assertion$ebnf$4", "symbols": []},
+    {"name": "Assertion$ebnf$4", "symbols": ["Assertion$ebnf$4", "SideEffect"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "Assertion", "symbols": ["Assert", "_", "Assertion$ebnf$1", "Expression", "Assertion$ebnf$2", "Equals", "Assertion$ebnf$3", "AssertionBody", "Assertion$ebnf$4"], "postprocess": ([_a, _1, comment, name, _2, _3, _4, body, se ]) => ASSERTION(name, body, comment && comment[0], se)},
+    {"name": "AssertionComment", "symbols": [(lexer.has("cb_left") ? {type: "cb_left"} : cb_left), (lexer.has("comment") ? {type: "comment"} : comment), (lexer.has("cb_right") ? {type: "cb_right"} : cb_right)], "postprocess": ([_, comment]) => comment},
+    {"name": "AssertionBody", "symbols": ["Expression"], "postprocess": nth(1, identity)},
+    {"name": "AssertionBody", "symbols": ["Symbol"], "postprocess": nth(1, lift)},
+    {"name": "AssertionBody", "symbols": ["Box"], "postprocess": nth(1, lift)},
+    {"name": "AssertionBody", "symbols": ["Unit"], "postprocess": nth(1, lift)},
+    {"name": "Import", "symbols": ["ImportKeyword", "_", "Identifier", "_", "Arrow", "_", "ImportList"], "postprocess": ([_1, _i, name, _2, _a, _3, ids]) => IMPORT(name, ids)},
+    {"name": "ImportList", "symbols": ["Star"], "postprocess": () => STAR},
+    {"name": "ImportList$ebnf$1", "symbols": []},
+    {"name": "ImportList$ebnf$1$subexpression$1", "symbols": ["ImportSeparator", "Identifier"]},
+    {"name": "ImportList$ebnf$1", "symbols": ["ImportList$ebnf$1", "ImportList$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
+    {"name": "ImportList", "symbols": ["Identifier", "ImportList$ebnf$1"], "postprocess": converge([nth(1, identity), nth(2, map(second))], concat)},
+    {"name": "ImportSeparator", "symbols": ["_"], "postprocess": nil},
+    {"name": "ImportSeparator", "symbols": ["ImportLineBreak"], "postprocess": nil},
+    {"name": "ImportLineBreak", "symbols": ["NewLine", "_", "Arrow", "_"], "postprocess": nil},
     {"name": "Expression$ebnf$1", "symbols": []},
     {"name": "Expression$ebnf$1$subexpression$1", "symbols": ["_", "Value"]},
     {"name": "Expression$ebnf$1", "symbols": ["Expression$ebnf$1", "Expression$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
@@ -147,6 +178,7 @@ var grammar = {
     {"name": "Value", "symbols": ["Identifier"], "postprocess": nth(1, identity)},
     {"name": "Value", "symbols": ["Box"], "postprocess": nth(1, identity)},
     {"name": "Value", "symbols": [(lexer.has("p_left") ? {type: "p_left"} : p_left), "Expression", (lexer.has("p_right") ? {type: "p_right"} : p_right)], "postprocess": nth(2, identity)},
+    {"name": "Value", "symbols": ["Unit"], "postprocess": nth(1, identity)},
     {"name": "ArgumentList$ebnf$1$subexpression$1", "symbols": ["_", "Identifier"]},
     {"name": "ArgumentList$ebnf$1", "symbols": ["ArgumentList$ebnf$1$subexpression$1"]},
     {"name": "ArgumentList$ebnf$1$subexpression$2", "symbols": ["_", "Identifier"]},
@@ -157,7 +189,11 @@ var grammar = {
     {"name": "Identifier$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "Identifier", "symbols": ["Identifier$ebnf$1", (lexer.has("id") ? {type: "id"} : id)], "postprocess": ([star, id]) => IDENTIFIER(id, star)},
     {"name": "Symbol", "symbols": [(lexer.has("sym") ? {type: "sym"} : sym)], "postprocess": nth(1, SYMBOL)},
+    {"name": "Unit", "symbols": [(lexer.has("p_left") ? {type: "p_left"} : p_left), (lexer.has("p_right") ? {type: "p_right"} : p_right)], "postprocess": () => UNIT},
+    {"name": "AnyWhitespace", "symbols": ["NewLine"], "postprocess": nil},
+    {"name": "AnyWhitespace", "symbols": ["_"], "postprocess": nil},
     {"name": "EmptyLine", "symbols": ["NewLine", "NewLine"], "postprocess": nil},
+    {"name": "ImportKeyword", "symbols": [(lexer.has("imp") ? {type: "imp"} : imp)], "postprocess": nil},
     {"name": "Assert", "symbols": [(lexer.has("assert") ? {type: "assert"} : assert)], "postprocess": nil},
     {"name": "NewLine", "symbols": [(lexer.has("nl") ? {type: "nl"} : nl)], "postprocess": nil},
     {"name": "Equals", "symbols": [(lexer.has("eq") ? {type: "eq"} : eq)], "postprocess": nil},
@@ -166,7 +202,7 @@ var grammar = {
     {"name": "Pipe", "symbols": [(lexer.has("pipe") ? {type: "pipe"} : pipe)], "postprocess": nil},
     {"name": "Star", "symbols": [(lexer.has("star") ? {type: "star"} : star)], "postprocess": () => STAR},
     {"name": "Dot", "symbols": [(lexer.has("dot") ? {type: "dot"} : dot)], "postprocess": nil},
-    {"name": "At", "symbols": [(lexer.has("at") ? {type: "at"} : at)], "postprocess": nil},
+    {"name": "Arrow", "symbols": [(lexer.has("arrow") ? {type: "arrow"} : arrow)], "postprocess": nil},
     {"name": "Colon", "symbols": [(lexer.has("colon") ? {type: "colon"} : colon)], "postprocess": nil}
 ]
   , ParserStart: "Program"

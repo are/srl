@@ -1,22 +1,30 @@
 @{%
     const moo = require('moo')
 
-    const lexer = moo.compile({
-        p_left:     '(',
-        p_right:    ')',
-        pipe:       '|',
-        box:        '#',
-        at:         '@',
-        as:         ':=',
-        colon:      ':',
-        eq:         '=',
-        star:       '*',
-        id:         { match: /[a-zA-Z0-9$!?\.\-]+/, type: moo.keywords({
-            assert: ['assert'],
-        }) },
-        ws:         /[ \t]+/,
-        sym:        /\<[0-9]+\>/,
-        nl:         { match: /\r?\n/, lineBreaks: true }
+    const lexer = moo.states({
+        main: {
+            p_left:     '(',
+            p_right:    ')',
+            cb_left:    { match: '{', push: 'comment' },
+            pipe:       '|',
+            box:        '#',
+            arrow:      '=>>',
+            as:         ':=',
+            colon:      ':',
+            eq:         '=',
+            star:       '*',
+            id:         { match: /[a-zA-Z0-9$!?\.\-]+/, type: moo.keywords({
+                assert: ['assert'],
+                imp: ["import"],
+            }) },
+            ws:         /[ \t]+/,
+            sym:        /\<[0-9]+\>/,
+            nl:         { match: /\r?\n/, lineBreaks: true }
+        },
+        comment: {
+            comment: { match: /[^}]+/, lineBreaks: true },
+            cb_right: { match:'}', pop: true }
+        }
     })
 
     const identity = a => a
@@ -28,6 +36,7 @@
     const concat = (...els) => els.reduce((r, e) => [...r, ...(Array.isArray(e) ? e : [e]) ], [])
 
     const nil = () => null
+    const lift = x => [x]
 
     const IDENTIFIER = (token, starToken) => ({
         type: 'IDENTIFIER',
@@ -53,10 +62,12 @@
         sideEffects: se
     })
 
-    const ASSERTION = (name, body) => ({
+    const ASSERTION = (name, body, comment, se) => ({
         type: 'ASSERTION',
         name,
-        body
+        body,
+        comment: comment && comment.value,
+        sideEffects: se
     })
 
     const IMPORT = (name, ids) => ({
@@ -76,6 +87,10 @@
     })
 
     const STAR = {}
+
+    const UNIT = {
+        type: 'UNIT'
+    }
 %}
 
 @lexer lexer
@@ -97,11 +112,27 @@ Declaration ->
 
 SideEffect -> NewLine _:* Pipe _:+ Expression {% nth(5, identity) %}
 
-Assertion -> Assert _ Identifier _:? Equals _:? Expression
-    {% ([_a, _1, name, _2, _3, _4, body ]) => ASSERTION(name, body) %}
+Assertion -> Assert _ (Comment AnyWhitespace:+):? Expression _:? Equals _:? AssertionBody SideEffect:*
+    {% ([_a, _1, comment, name, _2, _3, _4, body, se ]) => ASSERTION(name, body, comment && comment[0], se) %}
 
-Import -> At Identifier Colon (_ Identifier):+
-    {% ([_a, name, _c, ids]) => IMPORT(name, map(second)(ids)) %}
+Comment -> %cb_left %comment %cb_right {% ([_, comment]) => comment %}
+
+AssertionBody ->
+      Expression {% nth(1, identity) %}
+    | Symbol {% nth(1, lift) %}
+    | Box {% nth(1, lift) %}
+    | Unit {% nth(1, lift) %}
+
+Import -> ImportKeyword _ Identifier _ Arrow _ ImportList
+    {% ([_1, _i, name, _2, _a, _3, ids]) => IMPORT(name, ids) %}
+
+ImportList -> 
+      Star {% () => STAR %}
+    | Identifier (ImportSeparator Identifier):* {% converge([nth(1, identity), nth(2, map(second))], concat) %}
+
+ImportSeparator -> _ {% nil %} | ImportLineBreak {% nil %}
+
+ImportLineBreak -> NewLine _ Arrow _ {% nil %}
 
 Expression ->
       Identifier (_ Value):*
@@ -126,14 +157,18 @@ Value ->
     | Identifier {% nth(1, identity) %}
     | Box {% nth(1, identity) %}
     | %p_left Expression %p_right {% nth(2, identity) %}
+    | Unit {% nth(1, identity) %}
 
 ArgumentList -> (_ Identifier):+ {% nth(1, map(second)) %}
 
 Box -> %box Identifier {% nth(2, BOX) %}
 Identifier -> Star:? %id {% ([star, id]) => IDENTIFIER(id, star) %}
 Symbol -> %sym {% nth(1, SYMBOL) %}
+Unit -> %p_left %p_right {% () => UNIT %}
 
+AnyWhitespace -> NewLine {% nil %} | _ {% nil %}
 EmptyLine -> NewLine NewLine {% nil %}
+ImportKeyword -> %imp {% nil %}
 Assert -> %assert {% nil %}
 NewLine -> %nl {% nil %}
 Equals -> %eq {% nil %}
@@ -142,5 +177,5 @@ _ -> %ws {% nil %}
 Pipe -> %pipe {% nil %}
 Star -> %star {% () => STAR %}
 Dot -> %dot {% nil %}
-At -> %at {% nil %}
+Arrow -> %arrow {% nil %}
 Colon -> %colon {% nil %}

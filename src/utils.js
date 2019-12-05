@@ -46,7 +46,11 @@ const format = input =>
             }
 
             if (entry.type === 'BOX') {
-                return `@${entry.value}`
+                return `#${entry.value}`
+            }
+
+            if (entry.type === 'UNIT') {
+                return `()`
             }
 
             return entry.value
