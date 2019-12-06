@@ -72,11 +72,19 @@ export default class TestHarness {
                 }(${format(test)})`
 
                 let result
+                let evaluatedExpect
                 let error
 
                 try {
                     result = context.evaluate(test)
-                    assert.deepStrictEqual(expect, result)
+
+                    try {
+                        evaluatedExpect = context.evaluate(expect)
+                    } catch (e) {
+                        evaluatedExpect = expect
+                    }
+
+                    assert.deepStrictEqual(evaluatedExpect, result)
 
                     state.passedCount += 1
                     results.push(
@@ -116,8 +124,11 @@ export default class TestHarness {
 
                     results.push(
                         templates.getFailure(state.testIndex, testDescription, {
-                            error: error,
-                            expected: expect,
+                            error:
+                                error instanceof assert.AssertionError
+                                    ? null
+                                    : error,
+                            expected: evaluatedExpect,
                             actual: result,
                             stack: test
                         })

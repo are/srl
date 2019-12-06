@@ -25,6 +25,6 @@
         "tap-summary": "^4.0.0"
     },
     "bin": {
-        "srl": "./cli.js"
+        "srl": "./cli.sh"
     }
 }

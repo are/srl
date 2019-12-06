@@ -1,0 +1,48 @@
+module Collections
+
+True 1 2 := 1
+False 1 2 := 2
+
+if B T F := B T F
+
+pair 1 2 f := f 1 2
+first P := P True
+second P := P False
+
+assert first (pair <1> <2>) = <1>
+assert second (pair <1> <2>) = <2>
+assert first (second (pair <1> (pair <2> <3>))) = <2>
+
+Nil := pair True True
+is-Nil P := P True
+. h t := pair False (pair h t)
+head L := first (second L)
+tail L := second (second L)
+
+a-list := <1> . <2> . <3> . <4> . Nil
+
+assert is-Nil Nil = True
+assert is-Nil (a-list) = False
+
+assert head a-list = <1>
+assert tail a-list = <2> . <3> . <4> . Nil
+assert head (tail a-list) = <2>
+assert tail (tail a-list) = <3> . <4> . Nil
+assert head (tail (tail a-list)) = <3>
+assert tail (tail (tail a-list)) = . <4> Nil
+assert head (tail (tail (tail a-list))) = <4>
+assert tail (tail (tail (tail a-list))) = Nil
+
+last L := if (is-Nil (tail L)) (head L) (last (tail L))
+nth N L := head (N tail L)
+
+0 f x := x
+1 f x := f x
+2 f x := f (f x)
+3 f x := f (f (f x))
+
+assert last a-list = <4>
+assert nth 0 a-list = <1>
+assert nth 1 a-list = <2>
+assert nth 2 a-list = <3>
+assert nth 3 a-list = <4>

@@ -1,10 +1,11 @@
-module ChurchTest
+module test.Church
 
 import Church =>> False True and or not
               =>> first second
               =>> 0 1 2 3
               =>> plus succ mul exp
               =>> minus pred
+              =>> is-zero
 
 {Set up testing side-effect}
 eat! B *rest := *rest
@@ -26,6 +27,7 @@ assert or True True = True
 assert not True = False
 assert not False = True
 
+{`first` and `second` should return respective arguments}
 assert first <1> () = <1>
 assert second () <2> = <2>
 
@@ -64,3 +66,19 @@ assert {exp 2 3 should increment the box 8 times}
 assert {minus 3 2 should increment the box 1 time}
     minus 3 2 (eat! #a) () = ()
     | equals! #a <1>
+
+assert {pred 3 should increment the box 2 times}
+    pred 3 (eat! #a) () = ()
+    | equals! #a <2>
+
+assert {is-zero 0 should be True}
+    is-zero 0 = True
+
+assert {is-zero 1 should be False}
+    is-zero 1 = False
+
+assert {is-zero (pred 1) should be True}
+    is-zero (pred 1) = True
+
+assert {is-zero (succ 0) should be False}
+    is-zero (succ 0) = False

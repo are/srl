@@ -1,5 +1,3 @@
-#!/usr/bin/env node --experimental-modules --no-warnings
-
 import { main } from './src/index.js'
 import yargs from 'yargs'
 

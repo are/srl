@@ -144,85 +144,88 @@ export default class Context {
         return handler(res, this)
     }
 
-    reduce(expression, shouldRunEffects = true) {
+    simplify(expression) {
         let [head, ...tail] = expression
 
         while (Array.isArray(head)) {
             ;[head, ...tail] = [...head, ...tail]
         }
 
-        if (tail.length === 0) {
-            if (head.type === 'IDENTIFIER') {
-                const declaration = this.getDeclaration(head.value)
+        return [head, ...tail]
+    }
 
-                if (declaration && declaration.args.length > 0) {
+    reduce(expression, shouldRunEffects = true) {}
+
+    *solve(input, shouldRunEffects = true) {
+        let expression = input
+
+        while (true) {
+            let [head, ...tail] = this.simplify(expression)
+
+            if (tail.length === 0) {
+                if (head.type === 'IDENTIFIER') {
+                    const declaration = this.getDeclaration(head.value)
+
+                    if (
+                        declaration &&
+                        declaration.args &&
+                        declaration.args.length > 0
+                    ) {
+                        return [head]
+                    }
+                } else {
                     return [head]
                 }
             } else {
-                return [head]
-            }
-        } else {
-            if (head.type !== 'IDENTIFIER') {
-                throw new IrreducibleExpressionError(head.type)
-            }
-        }
-
-        if (!this.hasDeclaration(head.value)) {
-            throw new UnknownDeclarationError(head.value)
-        }
-
-        const declaration = this.getDeclaration(head.value)
-
-        const from = [...declaration.args]
-        const effects = [...declaration.sideEffects]
-        let result = [...declaration.body]
-        let args = [...tail]
-
-        while (from.length > 0) {
-            const argument = from.shift()
-            let value
-
-            if (argument.hasStar) {
-                value = args.slice()
-                args = []
-            } else {
-                value = args.shift()
+                if (head.type !== 'IDENTIFIER') {
+                    throw new IrreducibleExpressionError(head.type)
+                }
             }
 
-            if (value === undefined) {
-                throw new InsufficientArgumentsError()
+            if (!this.hasDeclaration(head.value)) {
+                throw new UnknownDeclarationError(head.value)
             }
 
-            result = this.replace(result, argument, value)
-        }
+            const declaration = this.getDeclaration(head.value)
 
-        if (Array.isArray(effects) && shouldRunEffects) {
-            for (let effect of effects) {
-                this.runSideEffect(effect, declaration.args, tail)
+            const from = [...(declaration.args || [])]
+            const effects = [...declaration.sideEffects]
+            let result = [...declaration.body]
+            let args = [...tail]
+
+            while (from.length > 0) {
+                const argument = from.shift()
+                let value
+
+                if (argument.hasStar) {
+                    value = args.slice()
+                    args = []
+                } else {
+                    value = args.shift()
+                }
+
+                if (value === undefined) {
+                    return result
+                }
+
+                result = this.replace(result, argument, value)
             }
+
+            if (Array.isArray(effects) && shouldRunEffects) {
+                for (let effect of effects) {
+                    this.runSideEffect(effect, declaration.args, tail)
+                }
+            }
+
+            expression = [...result, ...args]
+            yield expression
         }
-
-        return [result, ...args]
-    }
-
-    *solve(input) {
-        let result = input
-
-        while (
-            result.length !== 1 ||
-            (result.length === 1 && Array.isArray(result[0]))
-        ) {
-            result = this.reduce(result)
-            yield result
-        }
-
-        return result
     }
 
     evaluate(expression, options = {}) {
-        let result
+        let result = expression
         ;(options.onStart || (() => {}))(expression)
-        for (let res of this.solve(expression)) {
+        for (let res of this.solve(result)) {
             result = res
             ;(options.onStep || (() => {}))(result)
         }

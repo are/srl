@@ -73,9 +73,15 @@ export async function main(flags) {
         // TODO: if declaration has inputs, throw and ask for them
 
         const result = mod.evaluate(declaration.body, {
+            onStart: data => {
+                console.log(format(data))
+            },
             onStep: data => {
                 console.log(format(data))
                 // TODO: Display trace step by step
+            },
+            onEnd: data => {
+                console.log(format(data))
             }
         })
 
@@ -88,103 +94,3 @@ export async function main(flags) {
         return
     }
 }
-
-//         console.log(`TAP version 13`)
-//
-//         let testIndex = 0
-//         const testCount = mainModules.reduce(
-//             (acc, mod) =>
-//                 acc +
-//                 Array.from(mod.context.asserts).reduce(
-//                     (amm, ass) => 1 + ass.sideEffects.length + amm,
-//                     0
-//                 ),
-//             0
-//         )
-//
-//         console.log(`1..${testCount}`)
-//
-//         let didAnyFail = false
-//         for (let mainModule of mainModules) {
-//             console.log(`# ${mainModule.name} (${mainModule.path})`)
-//             let context = mainModule.context
-//
-//             for (let {
-//                 test,
-//                 expect,
-//                 comment,
-//                 sideEffects
-//             } of context.asserts) {
-//                 context.boxes.push()
-//                 const description = `${comment ? comment + ' ' : ''}(${format(
-//                     test
-//                 )})`
-//                 testIndex += 1
-//
-//                 let result
-//                 let error
-//                 let didThisFail = false
-//
-//                 try {
-//                     result = context.run(test, d => {
-//                         if (flags.trace) {
-//                             console.log(format(d))
-//                         }
-//                     })
-//                     assert.deepStrictEqual(expect, result, 'abc')
-//                 } catch (e) {
-//                     error = e
-//                     didAnyFail = true
-//                     didThisFail = true
-//                 }
-//
-//                 if (didThisFail) {
-//                     if (typeof error === 'string') {
-//                         console.log(`
-// not ok ${testIndex} - ${description}
-//   ---
-//     error:      ${error}
-//   ...`)
-//                     } else {
-//                         console.log(`
-// not ok ${testIndex} - ${description}
-//   ---
-//     expected:   ${format(expect)}
-//     actual:     ${format(result)}
-//     stack:      ${format(test)}
-//   ...`)
-//                     }
-//                 } else {
-//                     console.log(`ok ${testIndex} - ${description}`)
-//                     let seFailed = false
-//
-//                     for (let effect of sideEffects) {
-//                         const result = context.sideEffect(effect, [], [])
-//                         testIndex += 1
-//
-//                         if (result === true) {
-//                             console.log(
-//                                 `ok ${testIndex} -- side-effect: (${format(
-//                                     effect
-//                                 )})`
-//                             )
-//                         } else {
-//                             seFailed = false
-//                             console.log(
-//                                 `not ok ${testIndex} -- sife-effect: (${format(
-//                                     effect
-//                                 )})
-//   ---
-//     expected:   ${result.expected}
-//     actual:     ${result.actual}
-//   ...`
-//                             )
-//                         }
-//                     }
-//                 }
-//
-//                 context.boxes.pop()
-//             }
-//         }
-//
-//         process.exit(didAnyFail ? 1 : 0)
