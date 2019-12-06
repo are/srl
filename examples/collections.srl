@@ -3,27 +3,45 @@ module Collections
 True 1 2 := 1
 False 1 2 := 2
 
-if B T F := B T F
+assert {`True` should choose first of its arguments}
+    True <1> <2> = <1>
+assert {`False` should choose second of its arguments}
+    False <1> <2> = <2>
+
+if Bool if-true if-false := Bool if-true if-false
+
+assert {`if True` should behave like `True`}
+    if True <1> <2> = True <1> <2>
+assert {`if False` should behave like `False`}
+    if False <1> <2> = False <1> <2>
 
 pair 1 2 f := f 1 2
-first P := P True
-second P := P False
+first Pair := Pair True
 
-assert first (pair <1> <2>) = <1>
-assert second (pair <1> <2>) = <2>
-assert first (second (pair <1> (pair <2> <3>))) = <2>
+assert {`first` should extract the head of a pair}
+    first (pair <1> <2>) = <1>
+
+second Pair := Pair False
+
+assert {`second` should extract the tail of a pair}
+    second (pair <1> <2>) = <2>
 
 Nil := pair True True
 is-Nil P := P True
+
+assert {`is-Nil Nil` should return True}
+    is-Nil Nil = True
+
 . h t := pair False (pair h t)
+a-list := <1> . <2> . <3> . <4> . Nil
+
+assert {`is-Nil a-list` should return False}
+    is-Nil a-list = False
+
 head L := first (second L)
 tail L := second (second L)
 
-a-list := <1> . <2> . <3> . <4> . Nil
-
-assert is-Nil Nil = True
-assert is-Nil (a-list) = False
-
+{Check if `head` and `tail` work for all list elements}
 assert head a-list = <1>
 assert tail a-list = <2> . <3> . <4> . Nil
 assert head (tail a-list) = <2>
@@ -40,9 +58,23 @@ nth N L := head (N tail L)
 1 f x := f x
 2 f x := f (f x)
 3 f x := f (f (f x))
+4 f x := f (f (f (f x)))
+5 f x := f (f (f (f (f x))))
+6 f x := f (f (f (f (f (f x)))))
 
+{Check if `nth` and `last` work for a list}
 assert last a-list = <4>
 assert nth 0 a-list = <1>
 assert nth 1 a-list = <2>
 assert nth 2 a-list = <3>
 assert nth 3 a-list = <4>
+assert is-Nil (nth 3 a-list) = False
+
+{
+    Check if out of bounds `nth` is `Nil`
+    Also, using an out of bounds element without
+    checking for `Nil` is undefined behaviour
+}
+assert is-Nil (nth 4 a-list) = True
+assert is-Nil (nth 5 a-list) = True
+assert is-Nil (nth 6 a-list) = True

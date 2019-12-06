@@ -1,3 +1,5 @@
+import glob from 'glob-promise'
+
 import Module from './Module.js'
 import Linker from './Linker.js'
 import TestHarness from './TestHarness.js'
@@ -24,7 +26,11 @@ export async function main(flags) {
     }
 
     if (Array.isArray(flags._)) {
-        for (let filePath of flags._) {
+        const files = await Promise.all(
+            flags._.map(path => glob(path))
+        ).then(aFiles => aFiles.reduce((acc, arr) => [...acc, ...arr], []))
+
+        for (let filePath of files) {
             const source = new FileSource(filePath)
             modules.push(new Module(source))
         }
@@ -32,7 +38,7 @@ export async function main(flags) {
 
     if (Array.isArray(flags.import)) {
         for (let filePath of flags.import) {
-            const source = new FileSource(filePath)
+            const source = new FileSource(await glob(filePath))
             modules.push(new Module(source, true))
         }
     } else if (typeof flags.import === 'string') {
@@ -55,7 +61,7 @@ export async function main(flags) {
     // Decide what to do next:
     // 1. Run all assertions in main modules
     if (flags.runAssertions === true) {
-        const testHarness = new TestHarness(mains)
+        const testHarness = new TestHarness(mains, flags)
 
         return testHarness.run()
     } else if (typeof flags.solve === 'string') {

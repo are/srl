@@ -22,7 +22,8 @@ const templates = {
 }
 
 export default class TestHarness {
-    constructor(modules) {
+    constructor(modules, flags) {
+        this.flags = flags
         this.modules = modules
     }
 
@@ -76,7 +77,16 @@ export default class TestHarness {
                 let error
 
                 try {
-                    result = context.evaluate(test)
+                    result = context.evaluate(
+                        test,
+                        this.flags.trace
+                            ? {
+                                  onStart: data =>
+                                      console.log(`---\n${format(data)}`),
+                                  onStep: data => console.log(format(data))
+                              }
+                            : {}
+                    )
 
                     try {
                         evaluatedExpect = context.evaluate(expect)
