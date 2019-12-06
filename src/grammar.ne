@@ -16,6 +16,7 @@
             id:         { match: /[a-zA-Z0-9$!?\.\-]+/, type: moo.keywords({
                 assert: ['assert'],
                 imp: ["import"],
+                mod: ["module"]
             }) },
             ws:         /[ \t]+/,
             sym:        /\<[0-9]+\>/,
@@ -78,12 +79,17 @@
 
     const PROGRAM = (statements, body) => ({
         type: 'PROGRAM',
-        statements,
+        statements: statements.filter(Boolean),
     })
 
     const BOX = (identifier) => ({
         type: 'BOX',
         value: identifier.value
+    })
+
+    const MODULE = (name) => ({
+        type: 'MODULE',
+        name: name.value
     })
 
     const STAR = {}
@@ -102,9 +108,13 @@ EntryList -> Entry (NewLine:+ Entry):*
     {% converge([nth(1, identity), nth(2, map(second))], concat) %}
 
 Entry ->
-      Declaration {% nth(1, identity) %}
+      Module {% nth(1, identity) %}
+    | Declaration {% nth(1, identity) %}
     | Assertion {% nth(1, identity) %}
     | Import {% nth(1, identity) %}
+    | Comment {% nil %}
+
+Module -> %mod _ Identifier {% ([_m, _1, name]) => MODULE(name) %}
 
 Declaration ->
     Identifier ArgumentList:? _:? Assign _:? Expression SideEffect:*

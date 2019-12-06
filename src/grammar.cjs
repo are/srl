@@ -20,6 +20,7 @@ function id(x) { return x[0]; }
             id:         { match: /[a-zA-Z0-9$!?\.\-]+/, type: moo.keywords({
                 assert: ['assert'],
                 imp: ["import"],
+                mod: ["module"]
             }) },
             ws:         /[ \t]+/,
             sym:        /\<[0-9]+\>/,
@@ -82,12 +83,17 @@ function id(x) { return x[0]; }
 
     const PROGRAM = (statements, body) => ({
         type: 'PROGRAM',
-        statements,
+        statements: statements.filter(Boolean),
     })
 
     const BOX = (identifier) => ({
         type: 'BOX',
         value: identifier.value
+    })
+
+    const MODULE = (name) => ({
+        type: 'MODULE',
+        name: name.value
     })
 
     const STAR = {}
@@ -109,9 +115,12 @@ var grammar = {
     {"name": "EntryList$ebnf$1$subexpression$1", "symbols": ["EntryList$ebnf$1$subexpression$1$ebnf$1", "Entry"]},
     {"name": "EntryList$ebnf$1", "symbols": ["EntryList$ebnf$1", "EntryList$ebnf$1$subexpression$1"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "EntryList", "symbols": ["Entry", "EntryList$ebnf$1"], "postprocess": converge([nth(1, identity), nth(2, map(second))], concat)},
+    {"name": "Entry", "symbols": ["Module"], "postprocess": nth(1, identity)},
     {"name": "Entry", "symbols": ["Declaration"], "postprocess": nth(1, identity)},
     {"name": "Entry", "symbols": ["Assertion"], "postprocess": nth(1, identity)},
     {"name": "Entry", "symbols": ["Import"], "postprocess": nth(1, identity)},
+    {"name": "Entry", "symbols": ["Comment"], "postprocess": nil},
+    {"name": "Module", "symbols": [(lexer.has("mod") ? {type: "mod"} : mod), "_", "Identifier"], "postprocess": ([_m, _1, name]) => MODULE(name)},
     {"name": "Declaration$ebnf$1", "symbols": ["ArgumentList"], "postprocess": id},
     {"name": "Declaration$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "Declaration$ebnf$2", "symbols": ["_"], "postprocess": id},
@@ -128,7 +137,7 @@ var grammar = {
     {"name": "SideEffect", "symbols": ["NewLine", "SideEffect$ebnf$1", "Pipe", "SideEffect$ebnf$2", "Expression"], "postprocess": nth(5, identity)},
     {"name": "Assertion$ebnf$1$subexpression$1$ebnf$1", "symbols": ["AnyWhitespace"]},
     {"name": "Assertion$ebnf$1$subexpression$1$ebnf$1", "symbols": ["Assertion$ebnf$1$subexpression$1$ebnf$1", "AnyWhitespace"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
-    {"name": "Assertion$ebnf$1$subexpression$1", "symbols": ["AssertionComment", "Assertion$ebnf$1$subexpression$1$ebnf$1"]},
+    {"name": "Assertion$ebnf$1$subexpression$1", "symbols": ["Comment", "Assertion$ebnf$1$subexpression$1$ebnf$1"]},
     {"name": "Assertion$ebnf$1", "symbols": ["Assertion$ebnf$1$subexpression$1"], "postprocess": id},
     {"name": "Assertion$ebnf$1", "symbols": [], "postprocess": function(d) {return null;}},
     {"name": "Assertion$ebnf$2", "symbols": ["_"], "postprocess": id},
@@ -138,7 +147,7 @@ var grammar = {
     {"name": "Assertion$ebnf$4", "symbols": []},
     {"name": "Assertion$ebnf$4", "symbols": ["Assertion$ebnf$4", "SideEffect"], "postprocess": function arrpush(d) {return d[0].concat([d[1]]);}},
     {"name": "Assertion", "symbols": ["Assert", "_", "Assertion$ebnf$1", "Expression", "Assertion$ebnf$2", "Equals", "Assertion$ebnf$3", "AssertionBody", "Assertion$ebnf$4"], "postprocess": ([_a, _1, comment, name, _2, _3, _4, body, se ]) => ASSERTION(name, body, comment && comment[0], se)},
-    {"name": "AssertionComment", "symbols": [(lexer.has("cb_left") ? {type: "cb_left"} : cb_left), (lexer.has("comment") ? {type: "comment"} : comment), (lexer.has("cb_right") ? {type: "cb_right"} : cb_right)], "postprocess": ([_, comment]) => comment},
+    {"name": "Comment", "symbols": [(lexer.has("cb_left") ? {type: "cb_left"} : cb_left), (lexer.has("comment") ? {type: "comment"} : comment), (lexer.has("cb_right") ? {type: "cb_right"} : cb_right)], "postprocess": ([_, comment]) => comment},
     {"name": "AssertionBody", "symbols": ["Expression"], "postprocess": nth(1, identity)},
     {"name": "AssertionBody", "symbols": ["Symbol"], "postprocess": nth(1, lift)},
     {"name": "AssertionBody", "symbols": ["Box"], "postprocess": nth(1, lift)},

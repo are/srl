@@ -1,178 +1,190 @@
-#!/usr/bin/env node
+import Module from './Module.js'
+import Linker from './Linker.js'
+import TestHarness from './TestHarness.js'
+import { FileSource, StdinSource } from './sources.js'
 
-const util = require('util')
-const assert = require('assert')
+import { UnknownDeclarationError, UnexpectedResultError } from './errors.js'
 
-const { argv, trace, format, readFile } = require('./utils.js')
-const { Context } = require('./interpreter.js')
-const { Module } = require('./modules.js')
+import { helpText } from './constants.js'
+import { format } from './utils.js'
 
-async function main(inputPaths, flags) {
-    let modules = []
+export async function main(flags) {
+    // Check if help has been requested
+    if (flags.help === true || flags.h === true) {
+        console.log(helpText)
+        return process.exit(0)
+    }
+
+    // Create all modules that have been included in CLI command
+    const modules = []
 
     if (flags.stdin === true) {
-        modules.push(new Module('-', true, false))
+        const source = new StdinSource()
+        modules.push(new Module(source))
     }
 
-    if (flags.i !== undefined) {
-        let includes = Array.isArray(flags.i) ? flags.i : [flags.i]
-
-        for (let include of includes) {
-            modules.push(new Module(include, false, true))
+    if (Array.isArray(flags._)) {
+        for (let filePath of flags._) {
+            const source = new FileSource(filePath)
+            modules.push(new Module(source))
         }
     }
 
-    if (flags.stdin === undefined) {
-        for (let inputPath of inputPaths) {
-            modules.push(new Module(inputPath, false, false))
+    if (Array.isArray(flags.import)) {
+        for (let filePath of flags.import) {
+            const source = new FileSource(filePath)
+            modules.push(new Module(source, true))
         }
+    } else if (typeof flags.import === 'string') {
+        const source = new FileSource(flags.import)
+        modules.push(new Module(source, true))
     }
 
-    const moduleMap = {}
+    // Initialize all modules in parallel
+    await Promise.all(modules.map(mod => mod.initialize()))
 
-    for (let mod of modules) {
-        await mod.parse()
+    // Create a linker...
+    const linker = new Linker(modules)
 
-        moduleMap[mod.name] = mod
-    }
+    // and link all modules
+    linker.linkAll()
 
-    for (let mod of modules) {
-        mod.link(moduleMap)
-    }
+    // Get all modules that are not library imports (main modules)
+    const mains = linker.getMains()
 
-    const mainModules = modules.filter(mod => mod.isMain)
+    // Decide what to do next:
+    // 1. Run all assertions in main modules
+    if (flags.runAssertions === true) {
+        const testHarness = new TestHarness(mains)
 
-    if (flags.runTests === true) {
-        console.log(`TAP version 13`)
-
-        let testIndex = 0
-        const testCount = mainModules.reduce(
-            (acc, mod) =>
-                acc +
-                Array.from(mod.ctx.asserts).reduce(
-                    (amm, ass) => 1 + ass.sideEffects.length + amm,
-                    0
-                ),
-            0
-        )
-
-        console.log(`1..${testCount}`)
-
-        let didAnyFail = false
-        for (let mainModule of mainModules) {
-            console.log(`# ${mainModule.name} (${mainModule.path})`)
-            let ctx = mainModule.ctx
-
-            for (let { test, expect, comment, sideEffects } of ctx.asserts) {
-                const description = `${comment ? comment + ' ' : ''}(${format(
-                    test
-                )})`
-                testIndex += 1
-
-                let result
-                let error
-                let didThisFail = false
-
-                try {
-                    result = ctx.run(test, d => {
-                        if (flags.trace) {
-                            console.log(format(d))
-                        }
-                    })
-                    assert.deepStrictEqual(expect, result, 'abc')
-                } catch (e) {
-                    error = e
-                    didAnyFail = true
-                    didThisFail = true
-                }
-
-                if (didThisFail) {
-                    if (typeof error === 'string') {
-                        console.log(`
-not ok ${testIndex} - ${description}
-  ---
-    error:      ${error}
-  ...`)
-                    } else {
-                        console.log(`
-not ok ${testIndex} - ${description}
-  ---
-    expected:   ${format(expect)}
-    actual:     ${format(result)}
-    stack:      ${format(test)}
-  ...`)
-                    }
-                } else {
-                    console.log(`ok ${testIndex} - ${description}`)
-                    let seFailed = false
-
-                    for (let effect of sideEffects) {
-                        const result = ctx.sideEffect(effect, [], [])
-                        testIndex += 1
-
-                        if (result === true) {
-                            console.log(
-                                `ok ${testIndex} -- side-effect: (${format(
-                                    effect
-                                )})`
-                            )
-                        } else {
-                            seFailed = false
-                            console.log(
-                                `not ok ${testIndex} -- sife-effect: (${format(
-                                    effect
-                                )})
-  ---
-    expected:   ${result.expected}
-    actual:     ${result.actual}
-  ...`
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        process.exit(didAnyFail ? 1 : 0)
+        return testHarness.run()
     } else if (typeof flags.solve === 'string') {
-        let ruleName = flags.solve
+        // 2. Solve a specific declaration
+        const declarationName = flags.solve
 
-        const mod = mainModules.find(mod => mod.hasRule(ruleName))
+        const mod = mains.find(mod => mod.hasDeclaration(declarationName))
 
-        if (!mod) {
-            throw `Cannot find rule '${ruleName}'`
+        if (mod === undefined) {
+            throw new UnknownDeclarationError(declarationName)
         }
 
-        const rule = mod.ctx.rules.get(ruleName)
-        const result = mod.ctx.run(rule.to, i => {
-            if (flags.trace === true) {
-                console.log('STEP:', format(i))
+        const declaration = mod.getDeclaration(declarationName)
+
+        // TODO: if declaration has inputs, throw and ask for them
+
+        const result = mod.evaluate(declaration.body, {
+            onStep: data => {
+                console.log(format(data))
+                // TODO: Display trace step by step
             }
         })
 
-        if (result) {
-            console.log(format(result))
+        // TODO: Display output
+
+        if (!result) {
+            throw new UnexpectedResultError()
         }
 
-        process.exit(0)
-    } else {
-        console.log(
-            `Usage: srl [...main modules] [-options]
-
-Main modules:
-    Can import rules from other modules
-
-Options:
-    --stdin                             read main module from stdin
-    -i, --include <MODULE>              include a module to link to from main modules
-    --solve <RULE>                      reduce rule to basic term from any main module
-    --run-tests                         run all assertions in main modules`
-        )
+        return
     }
 }
 
-main(argv._, argv).catch(e => {
-    console.log(e)
-    trace('ERROR', e)
-    process.exit(1)
-})
+//         console.log(`TAP version 13`)
+//
+//         let testIndex = 0
+//         const testCount = mainModules.reduce(
+//             (acc, mod) =>
+//                 acc +
+//                 Array.from(mod.context.asserts).reduce(
+//                     (amm, ass) => 1 + ass.sideEffects.length + amm,
+//                     0
+//                 ),
+//             0
+//         )
+//
+//         console.log(`1..${testCount}`)
+//
+//         let didAnyFail = false
+//         for (let mainModule of mainModules) {
+//             console.log(`# ${mainModule.name} (${mainModule.path})`)
+//             let context = mainModule.context
+//
+//             for (let {
+//                 test,
+//                 expect,
+//                 comment,
+//                 sideEffects
+//             } of context.asserts) {
+//                 context.boxes.push()
+//                 const description = `${comment ? comment + ' ' : ''}(${format(
+//                     test
+//                 )})`
+//                 testIndex += 1
+//
+//                 let result
+//                 let error
+//                 let didThisFail = false
+//
+//                 try {
+//                     result = context.run(test, d => {
+//                         if (flags.trace) {
+//                             console.log(format(d))
+//                         }
+//                     })
+//                     assert.deepStrictEqual(expect, result, 'abc')
+//                 } catch (e) {
+//                     error = e
+//                     didAnyFail = true
+//                     didThisFail = true
+//                 }
+//
+//                 if (didThisFail) {
+//                     if (typeof error === 'string') {
+//                         console.log(`
+// not ok ${testIndex} - ${description}
+//   ---
+//     error:      ${error}
+//   ...`)
+//                     } else {
+//                         console.log(`
+// not ok ${testIndex} - ${description}
+//   ---
+//     expected:   ${format(expect)}
+//     actual:     ${format(result)}
+//     stack:      ${format(test)}
+//   ...`)
+//                     }
+//                 } else {
+//                     console.log(`ok ${testIndex} - ${description}`)
+//                     let seFailed = false
+//
+//                     for (let effect of sideEffects) {
+//                         const result = context.sideEffect(effect, [], [])
+//                         testIndex += 1
+//
+//                         if (result === true) {
+//                             console.log(
+//                                 `ok ${testIndex} -- side-effect: (${format(
+//                                     effect
+//                                 )})`
+//                             )
+//                         } else {
+//                             seFailed = false
+//                             console.log(
+//                                 `not ok ${testIndex} -- sife-effect: (${format(
+//                                     effect
+//                                 )})
+//   ---
+//     expected:   ${result.expected}
+//     actual:     ${result.actual}
+//   ...`
+//                             )
+//                         }
+//                     }
+//                 }
+//
+//                 context.boxes.pop()
+//             }
+//         }
+//
+//         process.exit(didAnyFail ? 1 : 0)

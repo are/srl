@@ -3,8 +3,9 @@
     "version": "1.0.0",
     "description": "",
     "main": "src/index.js",
+    "type": "module",
     "scripts": {
-        "compile": "nearleyc src/grammar.ne -o src/grammar.js"
+        "compile": "nearleyc src/grammar.ne -o src/grammar.cjs"
     },
     "keywords": [],
     "author": "",
@@ -24,6 +25,6 @@
         "tap-summary": "^4.0.0"
     },
     "bin": {
-        "srl": "src/index.js"
+        "srl": "./cli.js"
     }
 }

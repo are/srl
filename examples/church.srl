@@ -1,3 +1,5 @@
+module Church
+
 True a b := a
 False a b := b
 
@@ -25,3 +27,7 @@ inc f g h := h (g f)
 pred A f x := A (inc f) (first x) id
 
 is-zero A := A (first False) True
+
+id x := x
+
+main := plus 2 3 id <1>

@@ -1,25 +1,33 @@
-import church =>> False True and or not
-              =>> first second
-              =>> 0 1 2 plus succ
+module ChurchTest
 
+import Church =>> False True and or not
+              =>> first second
+              =>> 0 1 2 3
+              =>> plus succ mul exp
+              =>> minus pred
+
+{Set up testing side-effect}
 eat! B *rest := *rest
     | increment! B
 
+{Truth table for `and` operator}
 assert and False False = False
 assert and False True = False
 assert and True False = False
 assert and True True = True
 
+{Truth table for `or` operator}
 assert or False False = False
 assert or False True = True
 assert or True False = True
 assert or True True = True
 
+{Truth table for `not` operator}
 assert not True = False
 assert not False = True
 
-assert first <1> <2> = <1>
-assert second <1> <2> = <2>
+assert first <1> () = <1>
+assert second () <2> = <2>
 
 assert {0 should not apply a function}
     0 (first False) True = True
@@ -30,7 +38,7 @@ assert {1 should apply function once}
 assert {0 plus 0 should not apply a function}
     plus 0 0 (first False) True = True
 
-assert {0 plus 1 should apply function once}
+assert {0 plus 1 should apply function at least once}
     plus 0 1 (first False) True = False
 
 assert {1 plus 1 should increment the box 2 times}
@@ -38,5 +46,21 @@ assert {1 plus 1 should increment the box 2 times}
     | equals! #a <2>
 
 assert {2 plus 2 should increment the box 4 times}
-    plus 2 2 (eat! #b) () = ()
-    | equals! #b <4>
+    plus 2 2 (eat! #a) () = ()
+    | equals! #a <4>
+
+assert {succ 1 should increment the box 2 times}
+    succ 1 (eat! #a) () = ()
+    | equals! #a <2>
+
+assert {mul 2 3 should increment the box 6 times}
+    mul 2 3 (eat! #a) () = ()
+    | equals! #a <6>
+
+assert {exp 2 3 should increment the box 8 times}
+    exp 2 3 (eat! #a) () = ()
+    | equals! #a <8>
+
+assert {minus 3 2 should increment the box 1 time}
+    minus 3 2 (eat! #a) () = ()
+    | equals! #a <1>
